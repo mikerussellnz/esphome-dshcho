@@ -11,6 +11,8 @@ static constexpr uint8_t HCHO_READ_COMMAND[] = {0x42, 0x4D, 0x01, 0x00, 0x00, 0x
 static constexpr uint8_t HCHO_COMMAND_LENGTH = sizeof(HCHO_READ_COMMAND);
 static constexpr uint8_t HCHO_RESPONSE_LENGTH = 10;
 static constexpr uint8_t HCHO_RESPONSE_COMMAND = 0x08;
+static constexpr uint8_t HCHO_GAS_TYPE = 0x14;
+static constexpr uint8_t HCHO_UNIT = 0x05;
 static constexpr uint32_t HCHO_READ_TIMEOUT_MS = 1000;
 
 void DSHCHOSensor::setup() {
@@ -72,8 +74,14 @@ void DSHCHOSensor::update() {
     return;
   }
 
-  if (response[2] != 0x01 && response[2] != HCHO_RESPONSE_COMMAND) {
+  if (response[2] != HCHO_RESPONSE_COMMAND) {
     ESP_LOGW(TAG, "Unexpected HCHO response command: 0x%02X", response[2]);
+    this->status_set_warning();
+    return;
+  }
+
+  if (response[3] != HCHO_GAS_TYPE || response[4] != HCHO_UNIT) {
+    ESP_LOGW(TAG, "Unexpected HCHO response type/unit: 0x%02X/0x%02X", response[3], response[4]);
     this->status_set_warning();
     return;
   }
@@ -93,8 +101,28 @@ void DSHCHOSensor::update() {
     return;
   }
 
-  const uint16_t raw_value = (static_cast<uint16_t>(response[3]) << 8) | response[4];
-  const float hcho = raw_value / 1000.0f;
+  float data_quantity;
+  switch (response[5]) {
+    case 0x01:
+      data_quantity = 1.0f;
+      break;
+    case 0x02:
+      data_quantity = 10.0f;
+      break;
+    case 0x03:
+      data_quantity = 100.0f;
+      break;
+    case 0x04:
+      data_quantity = 1000.0f;
+      break;
+    default:
+      ESP_LOGW(TAG, "Unexpected HCHO data quantity code: 0x%02X", response[5]);
+      this->status_set_warning();
+      return;
+  }
+
+  const uint16_t raw_value = (static_cast<uint16_t>(response[6]) << 8) | response[7];
+  const float hcho = raw_value / data_quantity;
   ESP_LOGD(TAG, "HCHO: %.3f mg/m³", hcho);
   this->publish_state(hcho);
   this->status_clear_warning();
