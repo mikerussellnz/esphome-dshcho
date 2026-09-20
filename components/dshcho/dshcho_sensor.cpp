@@ -11,7 +11,6 @@ static constexpr uint8_t HCHO_READ_COMMAND[] = {0x42, 0x4D, 0x01, 0x00, 0x00, 0x
 static constexpr uint8_t HCHO_FRAME_LENGTH = sizeof(HCHO_READ_COMMAND);
 static constexpr uint8_t HCHO_RESPONSE_COMMAND = 0x08;
 static constexpr uint32_t HCHO_READ_TIMEOUT_MS = 1000;
-static constexpr uint16_t DSHCHO_BAUD_RATE = 9600;
 
 void DSHCHOSensor::setup() {
   ESP_LOGCONFIG(TAG, "DS-HCHO initialized");
@@ -81,7 +80,11 @@ void DSHCHOSensor::update() {
   const uint16_t checksum = (static_cast<uint16_t>(response[5]) << 8) | response[6];
   const uint16_t calculated_checksum = response[0] + response[1] + response[2] + response[3] + response[4];
   if (checksum != calculated_checksum) {
-    ESP_LOGW(TAG, "Invalid HCHO response checksum");
+    ESP_LOGW(TAG,
+             "Invalid HCHO response checksum: received 0x%04X, calculated 0x%04X; frame "
+             "%02X %02X %02X %02X %02X %02X %02X",
+             checksum, calculated_checksum, response[0], response[1], response[2], response[3],
+             response[4], response[5], response[6]);
     this->status_set_warning();
     return;
   }
@@ -95,7 +98,6 @@ void DSHCHOSensor::update() {
 
 void DSHCHOSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "DS-HCHO sensor");
-  ESP_LOGCONFIG(TAG, "  Baud rate: %u", DSHCHO_BAUD_RATE);
 }
 
 }  // namespace dshcho
