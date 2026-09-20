@@ -33,21 +33,46 @@ void DSHCHOSensor::update() {
   const uint32_t start = millis();
 
   while ((millis() - start) < HCHO_READ_TIMEOUT_MS) {
-    if (this->available() >= HCHO_FRAME_LENGTH) {
-      while (this->available() && bytes_read < HCHO_FRAME_LENGTH) {
-        if (!this->read_byte(&response[bytes_read])) {
-          break;
-        }
-        bytes_read++;
+    if (!this->available()) {
+      delay(10);
+      continue;
+    }
+
+    uint8_t byte;
+    if (!this->read_byte(&byte)) {
+      continue;
+    }
+
+    if (bytes_read == 0) {
+      if (byte == 0x42) {
+        response[bytes_read++] = byte;
       }
+      continue;
+    }
+
+    if (bytes_read == 1 && byte != 0x4D) {
+      bytes_read = byte == 0x42 ? 1 : 0;
+      if (bytes_read == 1) {
+        response[0] = byte;
+      }
+      continue;
+    }
+
+    response[bytes_read++] = byte;
+    if (bytes_read == HCHO_FRAME_LENGTH) {
       break;
     }
-    delay(10);
   }
 
-  if (bytes_read != HCHO_FRAME_LENGTH || response[0] != 0x42 || response[1] != 0x4D ||
-      response[2] != 0x01) {
-    ESP_LOGW(TAG, "Failed to read a valid HCHO measurement");
+  if (bytes_read != HCHO_FRAME_LENGTH) {
+    ESP_LOGW(TAG, "Failed to read a complete HCHO response (%u/%u bytes)", bytes_read,
+             HCHO_FRAME_LENGTH);
+    this->status_set_warning();
+    return;
+  }
+
+  if (response[2] != 0x01) {
+    ESP_LOGW(TAG, "Unexpected HCHO response command: 0x%02X", response[2]);
     this->status_set_warning();
     return;
   }
