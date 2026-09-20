@@ -9,6 +9,7 @@ static const char *TAG = "dshcho.sensor";
 
 static constexpr uint8_t HCHO_READ_COMMAND[] = {0x42, 0x4D, 0x01, 0x00, 0x00, 0x00, 0x90};
 static constexpr uint8_t HCHO_FRAME_LENGTH = sizeof(HCHO_READ_COMMAND);
+static constexpr uint8_t HCHO_RESPONSE_COMMAND = 0x08;
 static constexpr uint32_t HCHO_READ_TIMEOUT_MS = 1000;
 static constexpr uint16_t DSHCHO_BAUD_RATE = 9600;
 
@@ -71,7 +72,7 @@ void DSHCHOSensor::update() {
     return;
   }
 
-  if (response[2] != 0x01) {
+  if (response[2] != 0x01 && response[2] != HCHO_RESPONSE_COMMAND) {
     ESP_LOGW(TAG, "Unexpected HCHO response command: 0x%02X", response[2]);
     this->status_set_warning();
     return;
