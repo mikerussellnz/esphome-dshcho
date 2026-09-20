@@ -123,6 +123,8 @@ void DSHCHOSensor::update() {
 
   const uint16_t raw_value = (static_cast<uint16_t>(response[6]) << 8) | response[7];
   const float hcho = raw_value / data_quantity;
+  ESP_LOGD(TAG, "HCHO frame: gas=0x%02X unit=0x%02X quantity=0x%02X raw=%u divisor=%.0f",
+           response[3], response[4], response[5], raw_value, data_quantity);
   ESP_LOGD(TAG, "HCHO: %.3f mg/m³", hcho);
   this->publish_state(hcho);
   this->status_clear_warning();
