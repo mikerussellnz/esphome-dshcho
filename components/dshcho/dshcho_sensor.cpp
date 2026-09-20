@@ -8,7 +8,8 @@ namespace dshcho {
 static const char *TAG = "dshcho.sensor";
 
 static constexpr uint8_t HCHO_READ_COMMAND[] = {0x42, 0x4D, 0x01, 0x00, 0x00, 0x00, 0x90};
-static constexpr uint8_t HCHO_FRAME_LENGTH = sizeof(HCHO_READ_COMMAND);
+static constexpr uint8_t HCHO_COMMAND_LENGTH = sizeof(HCHO_READ_COMMAND);
+static constexpr uint8_t HCHO_RESPONSE_LENGTH = 10;
 static constexpr uint8_t HCHO_RESPONSE_COMMAND = 0x08;
 static constexpr uint32_t HCHO_READ_TIMEOUT_MS = 1000;
 
@@ -23,12 +24,12 @@ void DSHCHOSensor::update() {
   }
 
   this->flush();
-  for (uint8_t index = 0; index < HCHO_FRAME_LENGTH; index++) {
+  for (uint8_t index = 0; index < HCHO_COMMAND_LENGTH; index++) {
     this->write_byte(HCHO_READ_COMMAND[index]);
   }
   this->flush();
 
-  uint8_t response[HCHO_FRAME_LENGTH];
+  uint8_t response[HCHO_RESPONSE_LENGTH];
   uint8_t bytes_read = 0;
   const uint32_t start = millis();
 
@@ -59,14 +60,14 @@ void DSHCHOSensor::update() {
     }
 
     response[bytes_read++] = byte;
-    if (bytes_read == HCHO_FRAME_LENGTH) {
+    if (bytes_read == HCHO_RESPONSE_LENGTH) {
       break;
     }
   }
 
-  if (bytes_read != HCHO_FRAME_LENGTH) {
+  if (bytes_read != HCHO_RESPONSE_LENGTH) {
     ESP_LOGW(TAG, "Failed to read a complete HCHO response (%u/%u bytes)", bytes_read,
-             HCHO_FRAME_LENGTH);
+             HCHO_RESPONSE_LENGTH);
     this->status_set_warning();
     return;
   }
@@ -77,14 +78,17 @@ void DSHCHOSensor::update() {
     return;
   }
 
-  const uint16_t checksum = (static_cast<uint16_t>(response[5]) << 8) | response[6];
-  const uint16_t calculated_checksum = response[0] + response[1] + response[2] + response[3] + response[4];
+  const uint16_t checksum = (static_cast<uint16_t>(response[8]) << 8) | response[9];
+  uint16_t calculated_checksum = 0;
+  for (uint8_t index = 0; index < 8; index++) {
+    calculated_checksum += response[index];
+  }
   if (checksum != calculated_checksum) {
     ESP_LOGW(TAG,
              "Invalid HCHO response checksum: received 0x%04X, calculated 0x%04X; frame "
-             "%02X %02X %02X %02X %02X %02X %02X",
+             "%02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
              checksum, calculated_checksum, response[0], response[1], response[2], response[3],
-             response[4], response[5], response[6]);
+             response[4], response[5], response[6], response[7], response[8], response[9]);
     this->status_set_warning();
     return;
   }
